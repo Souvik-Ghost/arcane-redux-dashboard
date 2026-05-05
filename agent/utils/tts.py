@@ -96,9 +96,75 @@ def synthesise(
         logger.success(f"TTS saved: {output_path} ({output_path.stat().st_size // 1024}KB)")
         return output_path
 
+    except FileNotFoundError:
+        logger.warning("Kokoro model files not found — falling back to edge-tts (Microsoft Neural TTS)")
+        return _synthesise_edge_tts(text, output_path, voice)
+
+    except ImportError:
+        logger.warning("kokoro-onnx not installed — falling back to edge-tts")
+        return _synthesise_edge_tts(text, output_path, voice)
+
+
+# ── edge-tts fallback (Microsoft Neural TTS, no model files needed) ───────────
+
+_EDGE_VOICE_MAP = {
+    "af_heart":   "en-US-JennyNeural",    # warm female (closest to af_heart)
+    "af_bella":   "en-US-AnaNeural",      # expressive female
+    "am_adam":    "en-US-GuyNeural",      # male
+    "am_michael": "en-US-ChristopherNeural",  # deep male
+}
+
+
+def _synthesise_edge_tts(text: str, output_path: Path, voice: str = "af_heart") -> Path:
+    """
+    Synthesise speech via Microsoft Edge TTS (free, no model files, internet required).
+    Falls back to this when Kokoro ONNX models are not available.
+    """
+    import asyncio
+    import subprocess
+
+    edge_voice = _EDGE_VOICE_MAP.get(voice, "en-US-JennyNeural")
+    logger.info(f"edge-tts: {len(text)} chars → {output_path.name} (voice={edge_voice})")
+
+    try:
+        import edge_tts
+
+        async def _run():
+            communicate = edge_tts.Communicate(text, edge_voice)
+            # edge-tts saves as MP3 directly
+            mp3_path = output_path.with_suffix(".mp3")
+            await communicate.save(str(mp3_path))
+            return mp3_path
+
+        # Run in new event loop (safe from both sync and async contexts)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(asyncio.run, _run())
+                    mp3_path = future.result(timeout=300)
+            else:
+                mp3_path = loop.run_until_complete(_run())
+        except RuntimeError:
+            mp3_path = asyncio.run(_run())
+
+        # Rename to expected extension if needed
+        if output_path.suffix.lower() != ".mp3":
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(mp3_path), str(output_path)],
+                capture_output=True, timeout=120,
+            )
+            mp3_path.unlink(missing_ok=True)
+        elif mp3_path != output_path:
+            mp3_path.rename(output_path)
+
+        logger.success(f"edge-tts saved: {output_path} ({output_path.stat().st_size // 1024}KB)")
+        return output_path
+
     except ImportError:
         raise RuntimeError(
-            "kokoro-onnx not installed.\n"
-            "Run: pip install kokoro-onnx soundfile\n"
-            "Then download models from: https://github.com/thewh1teagle/kokoro-onnx/releases"
+            "No TTS available! Install edge-tts:\n"
+            "  pip install edge-tts\n"
+            "Or download Kokoro models from: https://github.com/thewh1teagle/kokoro-onnx/releases"
         )

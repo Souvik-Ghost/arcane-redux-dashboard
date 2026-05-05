@@ -34,7 +34,7 @@ def save_concept(title: str, hook: str, outline: str, narration: str) -> int:
         "title": title,
         "hook": hook,
         "script_outline": outline,
-        "full_narration": narration,
+        "full_script": narration,   # DB column is full_script (soul.md schema)
         "status": "scripted",
     }).execute()
     concept_id = r.data[0]["id"]
