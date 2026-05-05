@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arcane Redux — AI Dashboard</title>
+<style>
+/* ── Reset & Tokens ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:       #0b0d14;
+  --surface:  #11141f;
+  --card:     #161a28;
+  --border:   #1f2640;
+  --border2:  #2a3350;
+  --text:     #dde4f5;
+  --muted:    #6b7a99;
+  --dim:      #3d4a6b;
+  --accent:   #4f8fff;
+  --accent2:  #7c3aed;
+  --green:    #22c55e;
+  --red:      #ef4444;
+  --amber:    #f59e0b;
+  --cyan:     #06b6d4;
+  --glow-b:   0 0 24px rgba(79,143,255,.18);
+  --glow-p:   0 0 24px rgba(124,58,237,.18);
+  --r:        10px;
+  --r-sm:     6px;
+  --font:     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono:     'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text);
+  font-family: var(--font); font-size: 14px; overflow: hidden; }
+
+/* ── Layout shell ── */
+.shell { display: grid; grid-template-columns: 220px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
+
+/* ── Top bar ── */
+.topbar {
+  grid-column: 1/-1;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-icon { width: 28px; height: 28px; border-radius: 7px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0; }
+.logo-name { font-weight: 700; font-size: 15px; letter-spacing: -.3px; }
+.logo-sub  { font-size: 11px; color: var(--muted); letter-spacing: .5px; }
+.topbar-spacer { flex: 1; }
+.status-pills { display: flex; gap: 8px; align-items: center; }
+.pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--card);
+  font-size: 11px; color: var(--muted); cursor: default;
+  transition: border-color .2s;
+}
+.pill.ok    { border-color: rgba(34,197,94,.3);  color: var(--green); }
+.pill.err   { border-color: rgba(239,68,68,.3);  color: var(--red); }
+.pill.warn  { border-color: rgba(245,158,11,.3); color: var(--amber); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.dot.pulse { animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* ── Sidebar ── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 16px 0;
+  overflow-y: auto;
+}
+.nav-section { padding: 8px 16px 4px; font-size: 10px;
+  text-transform: uppercase; letter-spacing: .12em; color: var(--dim); }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px; margin: 1px 8px;
+  border-radius: var(--r-sm); cursor: pointer;
+  color: var(--muted); font-size: 13px;
+  transition: all .15s;
+}
+.nav-item:hover { background: var(--card); color: var(--text); }
+.nav-item.active { background: rgba(79,143,255,.12);
+  color: var(--accent); border: 1px solid rgba(79,143,255,.2); }
+.nav-item .ico { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+.nav-badge {
+  margin-left: auto; background: var(--accent);
+  color: #fff; font-size: 10px; padding: 1px 6px;
+  border-radius: 10px; min-width: 18px; text-align: center;
+}
+
+/* ── Main content ── */
+.main { overflow-y: auto; padding: 24px; background: var(--bg); }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Page header ── */
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.page-header h1 { font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
+.page-header .sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+/* ── Cards ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px;
+  transition: border-color .2s;
+}
+.card:hover { border-color: var(--border2); }
+.card-title { font-size: 11px; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--muted); margin-bottom: 10px; }
+
+/* ── Stat cards ── */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 14px; margin-bottom: 20px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px; }
+.stat-val  { font-size: 28px; font-weight: 700; letter-spacing: -.5px; line-height: 1; }
+.stat-label{ font-size: 11px; color: var(--muted); margin-top: 5px; }
+.stat-card.accent-b { border-color: rgba(79,143,255,.25); }
+.stat-card.accent-p { border-color: rgba(124,58,237,.25); }
+.stat-card.accent-g { border-color: rgba(34,197,94,.25); }
+
+/* ── Grid ── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+@media (max-width: 900px) { .grid-2,.grid-3 { grid-template-columns: 1fr; } }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 16px; border-radius: var(--r-sm);
+  font-family: var(--font); font-size: 13px; font-weight: 500;
+  cursor: pointer; border: none; transition: all .15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #3d7aff; box-shadow: var(--glow-b); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--muted);
+  border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--border2); color: var(--text); }
+.btn-danger { background: rgba(239,68,68,.12); color: var(--red);
+  border: 1px solid rgba(239,68,68,.2); }
+.btn-success { background: rgba(34,197,94,.12); color: var(--green);
+  border: 1px solid rgba(34,197,94,.2); }
+.btn-purple { background: var(--accent2); color: #fff; }
+.btn-purple:hover { background: #6d28d9; box-shadow: var(--glow-p); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+/* ── Form elements ── */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.form-input, .form-select, .form-textarea {
+  width: 100%; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 9px 12px; font-family: var(--font); font-size: 13px;
+  outline: none; transition: border-color .15s;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--accent); }
+.form-textarea { resize: vertical; min-height: 80px; }
+.form-select option { background: var(--surface); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 700px) { .form-row { grid-template-columns: 1fr; } }
+
+/* ── Progress pipeline ── */
+.pipeline { display: flex; align-items: center; gap: 0; margin: 16px 0; flex-wrap: wrap; }
+.pipe-step {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 4px;
+  font-size: 12px; background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); transition: all .3s;
+}
+.pipe-step.done  { background: rgba(34,197,94,.08); border-color: rgba(34,197,94,.3); color: var(--green); }
+.pipe-step.active{ background: rgba(79,143,255,.08); border-color: rgba(79,143,255,.3); color: var(--accent);
+  animation: pipe-pulse 1.5s infinite; }
+.pipe-step.error { background: rgba(239,68,68,.08); border-color: rgba(239,68,68,.3); color: var(--red); }
+@keyframes pipe-pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+.pipe-arrow { color: var(--dim); font-size: 14px; padding: 0 4px; }
+
+/* ── Log terminal ── */
+.terminal {
+  background: #080a10; border: 1px solid var(--border);
+  border-radius: var(--r); padding: 14px;
+  font-family: var(--mono); font-size: 12px; line-height: 1.7;
+  height: 280px; overflow-y: auto; color: #8fa6cc;
+}
+.terminal .log-info    { color: #8fa6cc; }
+.terminal .log-success { color: #4ade80; }
+.terminal .log-warning { color: #fbbf24; }
+.terminal .log-error   { color: #f87171; }
+.terminal .log-system  { color: #7c8fc0; font-style: italic; }
+.terminal .log-url     { color: #60a5fa; text-decoration: underline; cursor: pointer; }
+
+/* ── Job cards ── */
+.job-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 14px 16px; margin-bottom: 10px;
+  transition: border-color .2s;
+}
+.job-card.running { border-color: rgba(79,143,255,.3); }
+.job-card.done    { border-color: rgba(34,197,94,.2); }
+.job-card.error   { border-color: rgba(239,68,68,.2); }
+.job-top { display: flex; align-items: center; gap: 10px; }
+.job-type-badge {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+  padding: 2px 8px; border-radius: 10px;
+  background: rgba(79,143,255,.15); color: var(--accent);
+}
+.job-type-badge.shorts { background: rgba(124,58,237,.15); color: var(--accent2); }
+.job-title { font-size: 13px; font-weight: 500; flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job-status { font-size: 11px; color: var(--muted); }
+.job-status.running { color: var(--accent); }
+.job-status.done    { color: var(--green); }
+.job-status.error   { color: var(--red); }
+.job-url { margin-top: 6px; font-size: 12px; }
+.job-url a { color: var(--cyan); text-decoration: none; }
+.job-url a:hover { text-decoration: underline; }
+.job-log-toggle { font-size: 11px; color: var(--muted); cursor: pointer; margin-top: 4px; }
+.job-log-toggle:hover { color: var(--text); }
+.job-log { display: none; margin-top: 8px; max-height: 150px; overflow-y: auto;
+  background: #080a10; border-radius: 6px; padding: 8px; }
+.job-log.open { display: block; }
+.job-log-line { font-family: var(--mono); font-size: 11px; color: #6b7a99; line-height: 1.6; }
+
+/* ── Video library grid ── */
+.video-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap: 16px; }
+.video-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r);
+  overflow: hidden; transition: all .2s; }
+.video-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+.video-thumb { width: 100%; aspect-ratio: 16/9; background: var(--surface);
+  display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+.video-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.video-thumb .play-ico { position: absolute; font-size: 32px; opacity: .8; }
+.video-thumb .yt-badge { position: absolute; bottom: 6px; right: 6px;
+  background: rgba(0,0,0,.8); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 3px; }
+.video-info { padding: 10px 12px; }
+.video-title { font-size: 12px; font-weight: 500; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.video-meta { font-size: 11px; color: var(--muted); margin-top: 5px; }
+.video-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px;
+  font-size: 11px; color: var(--accent); text-decoration: none; }
+.video-link:hover { text-decoration: underline; }
+
+/* ── Model selector ── */
+.model-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 10px; margin: 10px 0; }
+.model-card {
+  border: 2px solid var(--border); border-radius: var(--r);
+  padding: 12px 14px; cursor: pointer; transition: all .15s;
+  background: var(--surface);
+}
+.model-card:hover { border-color: var(--border2); }
+.model-card.selected { border-color: var(--accent); background: rgba(79,143,255,.06); }
+.model-card.selected.purple { border-color: var(--accent2); background: rgba(124,58,237,.06); }
+.model-card-name { font-size: 13px; font-weight: 600; }
+.model-card-sub  { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.model-card-badge{ display: inline-block; font-size: 10px; padding: 1px 6px;
+  border-radius: 8px; margin-top: 5px; background: rgba(79,143,255,.15); color: var(--accent); }
+.model-card-badge.local { background: rgba(34,197,94,.15); color: var(--green); }
+.model-card-badge.paid  { background: rgba(245,158,11,.15); color: var(--amber); }
+
+/* ── Settings table ── */
+.settings-table { width: 100%; border-collapse: collapse; }
+.settings-table tr { border-bottom: 1px solid var(--border); }
+.settings-table td { padding: 10px 0; vertical-align: middle; }
+.settings-table td:first-child { width: 220px; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+.settings-table .setting-input { background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px;
+  font-size: 12px; width: 100%; outline: none; font-family: var(--mono); }
+.settings-table .setting-input:focus { border-color: var(--accent); }
+
+/* ── Tabs ── */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.tab { padding: 8px 16px; font-size: 13px; color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Toggle ── */
+.toggle { position: relative; display: inline-block; width: 38px; height: 20px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; inset: 0; background: var(--border2);
+  border-radius: 20px; cursor: pointer; transition: .2s; }
+.toggle-slider::after { content: ''; position: absolute; width: 14px; height: 14px;
+  left: 3px; top: 3px; background: white; border-radius: 50%; transition: .2s; }
+.toggle input:checked + .toggle-slider { background: var(--accent); }
+.toggle input:checked + .toggle-slider::after { transform: translateX(18px); }
+
+/* ── Spinner ── */
+.spinner { width: 16px; height: 16px; border: 2px solid var(--border2);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toast ── */
+#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 10px 16px; border-radius: var(--r-sm); font-size: 13px;
+  background: var(--card); border: 1px solid var(--border);
+  box-shadow: 0 4px 20px rgba(0,0,0,.4); animation: slide-in .2s ease;
+  max-width: 320px; }
+.toast.success { border-color: rgba(34,197,94,.4); color: var(--green); }
+.toast.error   { border-color: rgba(239,68,68,.4);  color: var(--red); }
+.toast.info    { border-color: rgba(79,143,255,.4); color: var(--accent); }
+@keyframes slide-in { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform: none; } }
+
+/* ── Misc ── */
+.mb-16 { margin-bottom: 16px; }
+.mb-20 { margin-bottom: 20px; }
+.flex  { display: flex; }
+.items-center { align-items: center; }
+.gap-10 { gap: 10px; }
+.gap-16 { gap: 16px; }
+.ml-auto { margin-left: auto; }
+.text-muted { color: var(--muted); }
+.text-sm { font-size: 12px; }
+.text-green { color: var(--green); }
+.text-red   { color: var(--red); }
+.text-amber { color: var(--amber); }
+.text-accent { color: var(--accent); }
+.font-mono { font-family: var(--mono); }
+.divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+.empty-state { text-align: center; padding: 48px 0; color: var(--muted); }
+.empty-state .empty-ico { font-size: 40px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="logo-icon">🐇</div>
+      <div>
+        <div class="logo-name">Arcane Redux</div>
+        <div class="logo-sub">AI CHANNEL OPERATOR</div>
+      </div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="status-pills">
+      <div class="pill" id="pill-lm"><div class="dot"></div> LM Studio</div>
+      <div class="pill" id="pill-claude"><div class="dot"></div> Claude</div>
+      <div class="pill" id="pill-yt"><div class="dot"></div> YouTube</div>
+      <div class="pill" id="pill-db"><div class="dot"></div> Supabase</div>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="nav-section">Main</div>
+    <div class="nav-item active" data-page="dashboard">
+      <span class="ico">📊</span> Dashboard
+    </div>
+    <div class="nav-item" data-page="produce">
+      <span class="ico">🎬</span> Produce Video
+    </div>
+    <div class="nav-item" data-page="shorts">
+      <span class="ico">⚡</span> Shorts
+    </div>
+    <div class="nav-section">Content</div>
+    <div class="nav-item" data-page="library">
+      <span class="ico">📚</span> Library
+    </div>
+    <div class="nav-item" data-page="jobs">
+      <span class="ico">⚙️</span> Jobs <span class="nav-badge" id="jobs-badge" style="display:none">0</span>
+    </div>
+    <div class="nav-section">System</div>
+    <div class="nav-item" data-page="models">
+      <span class="ico">🧠</span> AI Models
+    </div>
+    <div class="nav-item" data-page="settings">
+      <span class="ico">🔧</span> Settings
+    </div>
+    <div class="nav-item" data-page="logs">
+      <span class="ico">📜</span> Live Logs
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- ── DASHBOARD ── -->
+    <section class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div><h1>Dashboard</h1><div class="sub">Channel at a glance</div></div>
+        <button class="btn btn-primary" onclick="navigate('produce')">+ New Video</button>
+      </div>
+
+      <div class="stats-row" id="stat-cards">
+        <div class="stat-card accent-b">
+          <div class="stat-val text-accent" id="stat-jobs-active">—</div>
+          <div class="stat-label">Active Jobs</div>
+        </div>
+        <div class="stat-card accent-p">
+          <div class="stat-val" id="stat-jobs-total">—</div>
+          <div class="stat-label">Total Jobs Run</div>
+        </div>
+        <div class="stat-card accent-g">
+          <div class="stat-val text-green" id="stat-videos-pub">—</div>
+          <div class="stat-label">Videos Published</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="stat-channel">Arcane Redux</div>
+          <div class="stat-label">Channel</div>
+        </div>
+      </div>
+
+      <div class="grid-2 mb-20">
+        <div class="card">
+          <div class="card-title">Quick Actions</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-primary" onclick="navigate('produce')" style="width:100%;justify-content:center">
+              🎬 Produce Long-form Video
+            </button>
+            <button class="btn btn-purple" onclick="navigate('shorts')" style="width:100%;justify-content:center">
+              ⚡ Batch Shorts (3 videos)
+            </button>
+            <button class="btn btn-ghost" onclick="navigate('library')" style="width:100%;justify-content:center">
+              📚 View Library
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">System Status</div>
+          <div id="system-status-detail" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Recent Activity</div>
+        <div id="recent-jobs"></div>
+      </div>
+    </section>
+
+    <!-- ── PRODUCE ── -->
+    <section class="page" id="page-produce">
+      <div class="page-header">
+        <div><h1>Produce Video</h1><div class="sub">Long-form YouTube video — full pipeline</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <div class="card mb-16">
+            <div class="card-title">Video Details</div>
+            <div class="form-group">
+              <label class="form-label">Topic *</label>
+              <input class="form-input" id="produce-topic" placeholder="e.g. How Transformers Changed AI Forever" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Additional Context / Research Notes</label>
+              <textarea class="form-textarea" id="produce-context" placeholder="Paste any research, facts, angles you want included..."></textarea>
+            </div>
+          </div>
+
+          <div class="card mb-16">
+            <div class="card-title">AI Brain</div>
+            <div class="model-grid" id="produce-model-grid">
+              <div class="model-card selected" data-provider="lm_studio" onclick="selectProvider(this,'produce')">
+                <div class="model-card-name">LM Studio</div>
+                <div class="model-card-sub" id="lm-model-name-display">Loading...</div>
+                <span class="model-card-badge local">Local • Free</span>
+              </div>
+              <div class="model-card" data-provider="claude" onclick="selectProvider(this,'produce')">
+                <div class="model-card-name">Claude</div>
+                <div class="model-card-sub">claude-sonnet-4-6</div>
+                <span class="model-card-badge paid">API • Paid</span>
+              </div>
+              <div class="model-card" data-provider="groq" onclick="selectProvider(this,'produce')">
+                <div class="model-card-name">Groq</div>
+                <div class="model-card-sub">llama-3.3-70b</div>
+                <span class="model-card-badge">Free tier</span>
+              </div>
+              <div class="model-card" data-provider="gemini" onclick="selectProvider(this,'produce')">
+                <div class="model-card-name">Gemini</div>
+                <div class="model-card-sub">gemini-2.0-flash</div>
+                <span class="model-card-badge">Free tier</span>
+              </div>
+            </div>
+
+            <div id="lm-model-select-wrap" style="margin-top:10px">
+              <label class="form-label">LM Studio Model</label>
+              <select class="form-select" id="produce-lm-model"></select>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="produce-btn" onclick="startProduction()"
+            style="width:100%;justify-content:center;padding:12px">
+            🚀 Start Production
+          </button>
+        </div>
+
+        <div>
+          <div class="card mb-16" id="produce-progress-card" style="display:none">
+            <div class="card-title">Pipeline Progress</div>
+            <div class="pipeline" id="produce-pipeline">
+              <div class="pipe-step" id="pipe-script">📝 Script</div>
+              <div class="pipe-arrow">›</div>
+              <div class="pipe-step" id="pipe-thumb">🖼 Thumbnail</div>
+              <div class="pipe-arrow">›</div>
+              <div class="pipe-step" id="pipe-tts">🎙 TTS</div>
+              <div class="pipe-arrow">›</div>
+              <div class="pipe-step" id="pipe-avatar">🎭 Avatar</div>
+              <div class="pipe-arrow">›</div>
+              <div class="pipe-step" id="pipe-scenes">🎞 Scenes</div>
+              <div class="pipe-arrow">›</div>
+              <div class="pipe-step" id="pipe-upload">☁ Upload</div>
+            </div>
+            <div id="produce-url" style="display:none" class="mt-8">
+              <a id="produce-url-link" href="#" target="_blank" class="btn btn-success btn-sm">
+                ▶ Watch on YouTube →
+              </a>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+              Live Log
+              <button class="btn btn-ghost btn-sm" onclick="clearJobLog('produce')">Clear</button>
+            </div>
+            <div class="terminal" id="produce-log">
+              <span class="log-system">— Ready. Fill in the form and press Start Production —</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SHORTS ── -->
+    <section class="page" id="page-shorts">
+      <div class="page-header">
+        <div><h1>Shorts</h1><div class="sub">Vertical 1080×1920 · 30-59 seconds · auto-upload</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <div class="card mb-16">
+            <div class="card-title">Topics (up to 5)</div>
+            <div id="shorts-topics">
+              <div class="form-group"><label class="form-label">Short 1</label>
+                <input class="form-input" placeholder="GPS satellites lose 7µs/day to time dilation..." /></div>
+              <div class="form-group"><label class="form-label">Short 2</label>
+                <input class="form-input" placeholder="Einstein's relativity runs inside your phone..." /></div>
+              <div class="form-group"><label class="form-label">Short 3</label>
+                <input class="form-input" placeholder="The Hafele-Keating experiment proved time travel..." /></div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="addShortsTopic()">+ Add topic</button>
+          </div>
+
+          <div class="card mb-16">
+            <div class="card-title">AI Brain</div>
+            <div class="model-grid" id="shorts-model-grid">
+              <div class="model-card selected" data-provider="lm_studio" onclick="selectProvider(this,'shorts')">
+                <div class="model-card-name">LM Studio</div>
+                <div class="model-card-sub">Local model</div>
+                <span class="model-card-badge local">Free</span>
+              </div>
+              <div class="model-card" data-provider="claude" onclick="selectProvider(this,'shorts')">
+                <div class="model-card-name">Claude</div>
+                <div class="model-card-sub">claude-sonnet-4-6</div>
+                <span class="model-card-badge paid">Paid</span>
+              </div>
+              <div class="model-card" data-provider="groq" onclick="selectProvider(this,'shorts')">
+                <div class="model-card-name">Groq</div>
+                <div class="model-card-sub">llama-3.3-70b</div>
+                <span class="model-card-badge">Free</span>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-purple" onclick="startShorts()"
+            style="width:100%;justify-content:center;padding:12px">
+            ⚡ Start Shorts Batch
+          </button>
+        </div>
+
+        <div>
+          <div class="card mb-16" id="shorts-progress-card" style="display:none">
+            <div class="card-title">Batch Progress</div>
+            <div id="shorts-batch-status"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Live Log</div>
+            <div class="terminal" id="shorts-log">
+              <span class="log-system">— Fill topics and press Start —</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── LIBRARY ── -->
+    <section class="page" id="page-library">
+      <div class="page-header">
+        <div><h1>Library</h1><div class="sub">Published videos on Arcane Redux</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="loadLibrary()">↻ Refresh</button>
+      </div>
+      <div class="video-grid" id="video-grid">
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="empty-ico">🎬</div>
+          <div>Loading videos...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── JOBS ── -->
+    <section class="page" id="page-jobs">
+      <div class="page-header">
+        <div><h1>Jobs</h1><div class="sub">All production runs this session</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="renderJobs()">↻ Refresh</button>
+      </div>
+      <div id="jobs-list">
+        <div class="empty-state"><div class="empty-ico">⚙️</div><div>No jobs yet this session</div></div>
+      </div>
+    </section>
+
+    <!-- ── AI MODELS ── -->
+    <section class="page" id="page-models">
+      <div class="page-header">
+        <div><h1>AI Models</h1><div class="sub">Configure and test your AI brains</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <div class="card mb-16">
+            <div class="flex items-center gap-10 mb-16">
+              <span style="font-size:24px">🖥</span>
+              <div>
+                <div style="font-weight:600;font-size:15px">LM Studio</div>
+                <div class="text-sm text-muted">Local · Free · Unlimited</div>
+              </div>
+              <div class="ml-auto" id="lm-status-badge">—</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Server URL</label>
+              <input class="form-input font-mono" id="lm-url" value="" placeholder="http://10.206.96.37:1234/v1" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Active Model</label>
+              <select class="form-select" id="lm-active-model"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">API Key</label>
+              <input class="form-input font-mono" id="lm-api-key" type="password" placeholder="sk-lm-..." />
+            </div>
+            <div class="flex gap-10">
+              <button class="btn btn-ghost btn-sm" onclick="saveLMSettings()">💾 Save</button>
+              <button class="btn btn-ghost btn-sm" onclick="testLM()">🔌 Test Connection</button>
+            </div>
+            <div id="lm-test-result" style="margin-top:10px;font-size:12px;font-family:var(--mono)"></div>
+
+            <div style="margin-top:16px">
+              <div class="card-title">Available Models</div>
+              <div id="lm-models-list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card mb-16">
+            <div class="flex items-center gap-10 mb-16">
+              <span style="font-size:24px">🤖</span>
+              <div>
+                <div style="font-weight:600;font-size:15px">Claude (Anthropic)</div>
+                <div class="text-sm text-muted">API · Paid · Highest quality</div>
+              </div>
+              <div class="ml-auto" id="claude-status-badge">—</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">API Key</label>
+              <input class="form-input font-mono" id="claude-api-key" type="password" placeholder="sk-ant-api03-..." />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Model</label>
+              <select class="form-select" id="claude-model-select">
+                <option value="claude-sonnet-4-6">claude-sonnet-4-6 (recommended)</option>
+                <option value="claude-opus-4-5">claude-opus-4-5 (most capable)</option>
+                <option value="claude-haiku-4-5">claude-haiku-4-5 (fastest/cheapest)</option>
+              </select>
+            </div>
+            <div class="flex gap-10">
+              <button class="btn btn-ghost btn-sm" onclick="saveClaudeSettings()">💾 Save</button>
+              <button class="btn btn-ghost btn-sm" onclick="testClaude()">🔌 Test Connection</button>
+            </div>
+            <div id="claude-test-result" style="margin-top:10px;font-size:12px;font-family:var(--mono)"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Provider Priority</div>
+            <div class="text-sm text-muted" style="margin-bottom:12px">Scripts are generated using the first available provider:</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div class="flex items-center gap-10" style="padding:8px;background:var(--surface);border-radius:6px">
+                <span style="font-size:16px">1️⃣</span>
+                <div class="flex-1"><div style="font-size:13px;font-weight:500">LM Studio</div>
+                  <div class="text-sm text-muted">Local, free, no rate limits</div></div>
+                <div class="text-green text-sm" id="chain-lm">●</div>
+              </div>
+              <div class="flex items-center gap-10" style="padding:8px;background:var(--surface);border-radius:6px">
+                <span style="font-size:16px">2️⃣</span>
+                <div class="flex-1"><div style="font-size:13px;font-weight:500">Groq</div>
+                  <div class="text-sm text-muted">Free, 14k req/day</div></div>
+                <div class="text-sm" id="chain-groq">—</div>
+              </div>
+              <div class="flex items-center gap-10" style="padding:8px;background:var(--surface);border-radius:6px">
+                <span style="font-size:16px">3️⃣</span>
+                <div class="flex-1"><div style="font-size:13px;font-weight:500">Gemini</div>
+                  <div class="text-sm text-muted">Free, 1500/day</div></div>
+                <div class="text-sm" id="chain-gemini">—</div>
+              </div>
+              <div class="flex items-center gap-10" style="padding:8px;background:var(--surface);border-radius:6px">
+                <span style="font-size:16px">4️⃣</span>
+                <div class="flex-1"><div style="font-size:13px;font-weight:500">Claude</div>
+                  <div class="text-sm text-muted">Paid, highest quality</div></div>
+                <div class="text-sm" id="chain-claude">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SETTINGS ── -->
+    <section class="page" id="page-settings">
+      <div class="page-header">
+        <div><h1>Settings</h1><div class="sub">Channel and pipeline configuration</div></div>
+        <button class="btn btn-primary btn-sm" onclick="saveAllSettings()">💾 Save All</button>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-stab="channel">Channel</div>
+        <div class="tab" data-stab="schedule">Schedule</div>
+        <div class="tab" data-stab="api">API Keys</div>
+      </div>
+
+      <div id="stab-channel" class="stab-content">
+        <div class="card">
+          <table class="settings-table" id="settings-channel-table">
+          </table>
+        </div>
+      </div>
+      <div id="stab-schedule" class="stab-content" style="display:none">
+        <div class="card">
+          <table class="settings-table" id="settings-schedule-table"></table>
+        </div>
+      </div>
+      <div id="stab-api" class="stab-content" style="display:none">
+        <div class="card">
+          <table class="settings-table" id="settings-api-table"></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── LOGS ── -->
+    <section class="page" id="page-logs">
+      <div class="page-header">
+        <div><h1>Live Logs</h1><div class="sub">Real-time WebSocket stream from all agents</div></div>
+        <div class="flex gap-10">
+          <div class="pill" id="ws-status"><div class="dot"></div> Connecting...</div>
+          <button class="btn btn-ghost btn-sm" onclick="clearGlobalLog()">Clear</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="terminal" id="global-log" style="height:calc(100vh - 240px)">
+          <span class="log-system">Connecting to WebSocket...</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  activePage: 'dashboard',
+  status: {},
+  jobs: {},
+  lmModels: [],
+  produceProvider: 'lm_studio',
+  shortsProvider: 'lm_studio',
+  activeJobId: null,
+  wsConnected: false,
+};
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+let ws, wsRetries = 0;
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+  ws.onopen = () => {
+    state.wsConnected = true; wsRetries = 0;
+    updateWSStatus(true);
+    appendLog('global-log', '— WebSocket connected —', 'system');
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'ping') return;
+
+    if (msg.type === 'log') {
+      const cls = classifyLog(msg.line);
+      appendLog('global-log', msg.line, cls);
+      // Route to job-specific logs
+      if (msg.job === state.activeProduceJob) appendLog('produce-log', msg.line, cls);
+      if (msg.job === state.activeShortsJob) appendLog('shorts-log', msg.line, cls);
+      // Update job card log
+      if (state.jobs[msg.job]) {
+        state.jobs[msg.job].log = state.jobs[msg.job].log || [];
+        state.jobs[msg.job].log.push(msg.line);
+        const el = document.querySelector(`#job-log-${msg.job}`);
+        if (el) { const d = document.createElement('div'); d.className='job-log-line';
+          d.textContent = msg.line; el.appendChild(d); el.scrollTop=el.scrollHeight; }
+      }
+    }
+
+    if (msg.type === 'job_update') {
+      if (!state.jobs[msg.job]) state.jobs[msg.job] = {};
+      Object.assign(state.jobs[msg.job], msg);
+      renderJobBadge();
+      renderJobs();
+      if (msg.status === 'done' && msg.url) {
+        toast(`Published! ${msg.url}`, 'success');
+        if (msg.job === state.activeProduceJob) {
+          document.getElementById('produce-url').style.display = 'block';
+          document.getElementById('produce-url-link').href = msg.url;
+          document.getElementById('produce-url-link').textContent = '▶ Watch → ' + msg.url;
+        }
+      }
+      if (msg.status === 'error') toast(`Job ${msg.job} failed`, 'error');
+    }
+
+    if (msg.type === 'step') {
+      updatePipelineStep(msg.step, msg.job);
+    }
+
+    if (msg.type === 'published') {
+      appendLog('global-log', '✅ PUBLISHED: ' + msg.url, 'success');
+    }
+  };
+
+  ws.onclose = () => {
+    state.wsConnected = false;
+    updateWSStatus(false);
+    wsRetries++;
+    setTimeout(connectWS, Math.min(1000 * wsRetries, 10000));
+  };
+}
+
+function updateWSStatus(ok) {
+  const el = document.getElementById('ws-status');
+  el.className = ok ? 'pill ok' : 'pill err';
+  el.innerHTML = `<div class="dot ${ok?'pulse':''}"></div> ${ok ? 'Connected' : 'Reconnecting...'}`;
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelector(`[data-page="${page}"]`).classList.add('active');
+  state.activePage = page;
+  if (page === 'library') loadLibrary();
+  if (page === 'models') loadModels();
+  if (page === 'settings') loadSettings();
+}
+
+document.querySelectorAll('.nav-item[data-page]').forEach(el =>
+  el.addEventListener('click', () => navigate(el.dataset.page)));
+
+// ── Status polling ─────────────────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const s = await r.json();
+    state.status = s;
+
+    setPill('pill-lm', s.lm_studio?.ok, 'LM Studio');
+    setPill('pill-claude', s.claude?.ok, 'Claude');
+    setPill('pill-yt', s.youtube?.ok, 'YouTube');
+    setPill('pill-db', s.supabase?.ok, 'Supabase');
+
+    document.getElementById('stat-jobs-active').textContent = s.active_jobs ?? 0;
+    document.getElementById('stat-jobs-total').textContent  = s.total_jobs ?? 0;
+
+    if (s.lm_studio?.model) {
+      document.getElementById('lm-model-name-display').textContent = s.lm_studio.model.split('/').pop();
+      state.lmModels = s.lm_studio.models || [];
+      populateLMModelDropdowns(state.lmModels);
+    }
+
+    renderSystemStatusDetail(s);
+
+    if (s.lm_studio?.ok) document.getElementById('chain-lm').textContent = '● online';
+    if (s.claude?.ok) document.getElementById('chain-claude').textContent = '● online';
+
+  } catch(e) {}
+}
+
+function setPill(id, ok, label) {
+  const el = document.getElementById(id);
+  el.className = `pill ${ok ? 'ok' : 'err'}`;
+  el.innerHTML = `<div class="dot ${ok?'pulse':''}"></div> ${label}`;
+}
+
+function renderSystemStatusDetail(s) {
+  const el = document.getElementById('system-status-detail');
+  const items = [
+    { label: 'LM Studio', ok: s.lm_studio?.ok, sub: s.lm_studio?.model || s.lm_studio?.error || '' },
+    { label: 'Claude API', ok: s.claude?.ok, sub: s.claude?.model || 'Not configured' },
+    { label: 'YouTube',   ok: s.youtube?.ok,  sub: s.youtube?.channel || 'No token' },
+    { label: 'Supabase',  ok: s.supabase?.ok, sub: s.supabase?.url ? 'Connected' : 'Not configured' },
+  ];
+  el.innerHTML = items.map(i => `
+    <div class="flex items-center gap-10">
+      <div class="dot" style="background:${i.ok?'var(--green)':'var(--red)'}"></div>
+      <div style="font-size:13px;font-weight:500;flex:1">${i.label}</div>
+      <div class="text-sm text-muted">${i.sub.length > 35 ? i.sub.slice(0,35)+'…' : i.sub}</div>
+    </div>
+  `).join('');
+}
+
+// ── Model dropdowns ────────────────────────────────────────────────────────
+function populateLMModelDropdowns(models) {
+  const selects = ['produce-lm-model', 'lm-active-model'];
+  const current = document.getElementById('lm-url')?.value
+    ? null : (state.status.lm_studio?.model || '');
+  selects.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = models.map(m =>
+      `<option value="${m}">${m}</option>`
+    ).join('');
+    if (prev && models.includes(prev)) sel.value = prev;
+    else if (current && models.includes(current)) sel.value = current;
+  });
+
+  // LM models list on models page
+  const list = document.getElementById('lm-models-list');
+  if (list) {
+    list.innerHTML = models.map(m => `
+      <div class="flex items-center gap-10" style="padding:7px 10px;background:var(--surface);border-radius:6px">
+        <span style="font-size:13px">🔷</span>
+        <div style="font-size:12px;font-family:var(--mono);flex:1">${m}</div>
+        <button class="btn btn-ghost btn-sm" onclick="setLMModel('${m}')">Use</button>
+      </div>
+    `).join('');
+  }
+}
+
+async function setLMModel(model) {
+  await saveSetting('LM_STUDIO_MODEL', model);
+  toast(`Model set to ${model}`, 'success');
+  pollStatus();
+}
+
+// ── Provider selection ─────────────────────────────────────────────────────
+function selectProvider(card, context) {
+  const grid = document.getElementById(`${context}-model-grid`);
+  grid.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected','purple'));
+  card.classList.add('selected');
+  if (card.dataset.provider === 'claude') card.classList.add('purple');
+
+  const provider = card.dataset.provider;
+  if (context === 'produce') state.produceProvider = provider;
+  if (context === 'shorts')  state.shortsProvider  = provider;
+
+  const lmWrap = document.getElementById('lm-model-select-wrap');
+  if (lmWrap) lmWrap.style.display = provider === 'lm_studio' ? 'block' : 'none';
+}
+
+// ── Production ─────────────────────────────────────────────────────────────
+async function startProduction() {
+  const topic = document.getElementById('produce-topic').value.trim();
+  if (!topic) { toast('Please enter a topic', 'error'); return; }
+
+  const context = document.getElementById('produce-context').value.trim();
+  const lmModel = document.getElementById('produce-lm-model')?.value || '';
+
+  const btn = document.getElementById('produce-btn');
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Starting...';
+
+  // Reset pipeline UI
+  document.getElementById('produce-progress-card').style.display = 'block';
+  document.getElementById('produce-url').style.display = 'none';
+  ['script','thumb','tts','avatar','scenes','upload'].forEach(s =>
+    document.getElementById('pipe-'+s).className = 'pipe-step');
+  document.getElementById('produce-log').innerHTML = '';
+
+  try {
+    const r = await fetch('/api/produce', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ topic, context, model_provider: state.produceProvider, model_name: lmModel })
+    });
+    const d = await r.json();
+    state.activeProduceJob = d.job_id;
+    state.jobs[d.job_id] = { id: d.job_id, type: 'video', topic, status: 'queued', log: [] };
+    appendLog('produce-log', `Job started: ${d.job_id}`, 'system');
+    appendLog('produce-log', `Topic: ${topic}`, 'system');
+    appendLog('produce-log', `Provider: ${state.produceProvider}`, 'system');
+    toast('Production job started!', 'info');
+    renderJobs();
+    renderJobBadge();
+  } catch(e) {
+    toast('Failed to start: ' + e.message, 'error');
+  }
+
+  btn.disabled = false; btn.innerHTML = '🚀 Start Production';
+}
+
+function updatePipelineStep(step, jobId) {
+  if (jobId !== state.activeProduceJob) return;
+  const map = {
+    'script_done': ['script','thumb'],
+    'tts_done':    ['script','thumb','tts'],
+    'avatar_done': ['script','thumb','tts','avatar'],
+    'scenes_start':['script','thumb','tts','avatar'],
+    'concat_start':['script','thumb','tts','avatar','scenes'],
+    'upload_start':['script','thumb','tts','avatar','scenes'],
+  };
+  const done = map[step] || [];
+  done.forEach(s => {
+    const el = document.getElementById('pipe-'+s);
+    if (el) el.className = 'pipe-step done';
+  });
+  const activeMap = {
+    'script_done':'thumb','tts_done':'avatar','avatar_done':'scenes',
+    'scenes_start':'scenes','concat_start':'upload','upload_start':'upload'
+  };
+  const active = activeMap[step];
+  if (active) {
+    const el = document.getElementById('pipe-'+active);
+    if (el) el.className = 'pipe-step active';
+  }
+}
+
+// ── Shorts ─────────────────────────────────────────────────────────────────
+function addShortsTopic() {
+  const container = document.getElementById('shorts-topics');
+  const count = container.children.length + 1;
+  if (count > 5) { toast('Max 5 shorts per batch', 'error'); return; }
+  const div = document.createElement('div');
+  div.className = 'form-group';
+  div.innerHTML = `<label class="form-label">Short ${count}</label>
+    <input class="form-input" placeholder="Topic..." />`;
+  container.appendChild(div);
+}
+
+async function startShorts() {
+  const inputs = document.querySelectorAll('#shorts-topics input');
+  const topics = [...inputs].map(i => i.value.trim()).filter(Boolean);
+  if (!topics.length) { toast('Enter at least one topic', 'error'); return; }
+
+  document.getElementById('shorts-progress-card').style.display = 'block';
+  document.getElementById('shorts-log').innerHTML = '';
+
+  const r = await fetch('/api/shorts', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ topics, model_provider: state.shortsProvider })
+  });
+  const d = await r.json();
+  state.activeShortsJob = d.job_id;
+  state.jobs[d.job_id] = { id: d.job_id, type: 'shorts', topic: `${topics.length} shorts`, status: 'queued', log: [] };
+  appendLog('shorts-log', `Batch started: ${d.job_id} (${topics.length} videos)`, 'system');
+  topics.forEach((t,i) => appendLog('shorts-log', `  ${i+1}. ${t}`, 'system'));
+  toast(`Shorts batch started (${topics.length} videos)`, 'info');
+  renderJobs();
+  renderJobBadge();
+
+  // Render batch status cards
+  const batchEl = document.getElementById('shorts-batch-status');
+  batchEl.innerHTML = topics.map((t,i) => `
+    <div class="flex items-center gap-10" style="padding:8px;background:var(--surface);border-radius:6px;margin-bottom:6px">
+      <div class="dot pulse" id="short-dot-${i}" style="background:var(--amber)"></div>
+      <div style="font-size:12px;flex:1">${t}</div>
+      <div class="text-sm text-muted" id="short-status-${i}">queued</div>
+    </div>`).join('');
+}
+
+// ── Library ────────────────────────────────────────────────────────────────
+async function loadLibrary() {
+  document.getElementById('video-grid').innerHTML =
+    '<div class="empty-state" style="grid-column:1/-1"><div class="spinner"></div></div>';
+  try {
+    const r = await fetch('/api/videos');
+    const { videos, error } = await r.json();
+    if (error && !videos?.length) {
+      document.getElementById('video-grid').innerHTML =
+        `<div class="empty-state" style="grid-column:1/-1"><div class="empty-ico">⚠️</div><div>${error}</div></div>`;
+      return;
+    }
+    renderVideoGrid(videos || []);
+    document.getElementById('stat-videos-pub').textContent = (videos || []).length;
+  } catch(e) {
+    document.getElementById('video-grid').innerHTML =
+      '<div class="empty-state" style="grid-column:1/-1"><div class="empty-ico">⚠️</div><div>Failed to load</div></div>';
+  }
+}
+
+function renderVideoGrid(videos) {
+  if (!videos.length) {
+    document.getElementById('video-grid').innerHTML =
+      '<div class="empty-state" style="grid-column:1/-1"><div class="empty-ico">🎬</div><div>No published videos yet</div></div>';
+    return;
+  }
+  document.getElementById('video-grid').innerHTML = videos.map(v => {
+    const ytId = v.canva_design_id || '';
+    const thumb = ytId ? `https://i.ytimg.com/vi/${ytId}/mqdefault.jpg` : '';
+    const date = new Date(v.created_at).toLocaleDateString();
+    return `
+      <div class="video-card">
+        <div class="video-thumb">
+          ${thumb ? `<img src="${thumb}" onerror="this.style.display='none'" />` : ''}
+          <span class="play-ico">▶</span>
+          ${ytId ? `<span class="yt-badge">YouTube</span>` : ''}
+        </div>
+        <div class="video-info">
+          <div class="video-title">${v.title || '(untitled)'}</div>
+          <div class="video-meta">${date}</div>
+          ${ytId ? `<a class="video-link" href="https://youtube.com/watch?v=${ytId}" target="_blank">▶ Watch →</a>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Jobs list ──────────────────────────────────────────────────────────────
+function renderJobs() {
+  const list = document.getElementById('jobs-list');
+  const jobArr = Object.values(state.jobs).reverse();
+  if (!jobArr.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-ico">⚙️</div><div>No jobs yet</div></div>';
+    return;
+  }
+  list.innerHTML = jobArr.map(j => `
+    <div class="job-card ${j.status}" id="job-card-${j.id}">
+      <div class="job-top">
+        <span class="job-type-badge ${j.type==='shorts'?'shorts':''}">${j.type}</span>
+        <span class="job-title">${j.topic || j.id}</span>
+        <span class="job-status ${j.status}">${statusEmoji(j.status)} ${j.status}</span>
+      </div>
+      <div class="text-sm text-muted" style="margin-top:4px;font-family:var(--mono)">ID: ${j.id}</div>
+      ${j.url ? `<div class="job-url"><a href="${j.url}" target="_blank">${j.url}</a></div>` : ''}
+      <div class="job-log-toggle" onclick="toggleJobLog('${j.id}')">▼ Show log (${(j.log||[]).length} lines)</div>
+      <div class="job-log" id="job-log-${j.id}">
+        ${(j.log||[]).map(l => `<div class="job-log-line">${escHtml(l)}</div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function renderJobBadge() {
+  const active = Object.values(state.jobs).filter(j => j.status === 'running').length;
+  const badge = document.getElementById('jobs-badge');
+  if (active > 0) { badge.style.display='inline'; badge.textContent=active; }
+  else badge.style.display='none';
+  document.getElementById('stat-jobs-active').textContent = active;
+  document.getElementById('stat-jobs-total').textContent = Object.keys(state.jobs).length;
+}
+
+function renderRecentJobs() {
+  const el = document.getElementById('recent-jobs');
+  const jobArr = Object.values(state.jobs).slice(-3).reverse();
+  if (!jobArr.length) { el.innerHTML = '<div class="text-sm text-muted">No jobs yet this session</div>'; return; }
+  el.innerHTML = jobArr.map(j => `
+    <div class="flex items-center gap-10" style="padding:8px;background:var(--surface);border-radius:6px;margin-bottom:6px">
+      <span class="job-type-badge ${j.type==='shorts'?'shorts':''}">${j.type}</span>
+      <span style="font-size:13px;flex:1">${j.topic}</span>
+      <span class="job-status ${j.status}">${statusEmoji(j.status)} ${j.status}</span>
+      ${j.url ? `<a href="${j.url}" target="_blank" class="btn btn-ghost btn-sm">▶</a>` : ''}
+    </div>`).join('');
+}
+
+function toggleJobLog(id) {
+  const el = document.getElementById('job-log-' + id);
+  el.classList.toggle('open');
+}
+
+function statusEmoji(s) {
+  return {running:'⚡',done:'✅',error:'❌',queued:'🕐'}[s] || '—';
+}
+
+// ── Models page ────────────────────────────────────────────────────────────
+function loadModels() {
+  const s = state.status;
+  if (s.lm_studio) {
+    document.getElementById('lm-url').value = s.lm_studio.url || '';
+    document.getElementById('lm-status-badge').innerHTML =
+      `<span class="${s.lm_studio.ok?'text-green':'text-red'}">${s.lm_studio.ok?'● Online':'● Offline'}</span>`;
+  }
+  if (s.claude) {
+    document.getElementById('claude-status-badge').innerHTML =
+      `<span class="${s.claude.ok?'text-green':'text-red'}">${s.claude.ok?'● Online':'● No key'}</span>`;
+  }
+  populateLMModelDropdowns(state.lmModels);
+}
+
+async function testLM() {
+  const btn = event.target; btn.disabled = true; btn.textContent = 'Testing...';
+  const r = await fetch('/api/test/lm', {method:'POST'});
+  const d = await r.json();
+  const el = document.getElementById('lm-test-result');
+  el.className = d.ok ? 'text-green' : 'text-red';
+  el.textContent = d.ok ? `✅ ${d.model}: "${d.response}"` : `❌ ${d.error}`;
+  btn.disabled = false; btn.textContent = '🔌 Test Connection';
+}
+
+async function testClaude() {
+  const btn = event.target; btn.disabled = true; btn.textContent = 'Testing...';
+  const key = document.getElementById('claude-api-key').value;
+  if (key) await saveSetting('ANTHROPIC_API_KEY', key);
+  const r = await fetch('/api/test/claude', {method:'POST'});
+  const d = await r.json();
+  const el = document.getElementById('claude-test-result');
+  el.className = d.ok ? 'text-green' : 'text-red';
+  el.textContent = d.ok ? `✅ "${d.response}"` : `❌ ${d.error}`;
+  btn.disabled = false; btn.textContent = '🔌 Test Connection';
+}
+
+async function saveLMSettings() {
+  const url = document.getElementById('lm-url').value.trim();
+  const model = document.getElementById('lm-active-model').value;
+  const key = document.getElementById('lm-api-key').value.trim();
+  if (url) await saveSetting('LM_STUDIO_BASE_URL', url);
+  if (model) await saveSetting('LM_STUDIO_MODEL', model);
+  if (key) await saveSetting('LM_STUDIO_API_KEY', key);
+  toast('LM Studio settings saved', 'success');
+  pollStatus();
+}
+
+async function saveClaudeSettings() {
+  const key = document.getElementById('claude-api-key').value.trim();
+  const model = document.getElementById('claude-model-select').value;
+  if (key) await saveSetting('ANTHROPIC_API_KEY', key);
+  if (model) await saveSetting('CLAUDE_MODEL', model);
+  toast('Claude settings saved', 'success');
+}
+
+// ── Settings page ──────────────────────────────────────────────────────────
+const settingsMap = {
+  channel: [
+    ['CHANNEL_NICHE','Channel Niche'],['CHANNEL_TONE','Tone'],
+    ['AVATAR_NAME','Avatar Name'],['AVATAR_VOICE','Avatar Voice'],
+    ['YOUTUBE_CHANNEL_ID','YouTube Channel ID'],['SUPABASE_URL','Supabase URL'],
+    ['PEXELS_API_KEY','Pexels API Key'],
+  ],
+  schedule: [
+    ['VIDEOS_PER_WEEK','Videos Per Week'],['PUBLISH_DAYS','Publish Days (csv)'],
+    ['PUBLISH_HOUR','Publish Hour (UTC)'],['SHORTS_PER_DAY','Shorts Per Day'],
+    ['REQUIRE_APPROVAL','Require Approval (true/false)'],
+  ],
+  api: [
+    ['GROQ_API_KEY','Groq API Key'],['OPENROUTER_API_KEY','OpenRouter Key'],
+    ['GEMINI_API_KEY','Gemini API Key'],['ANTHROPIC_API_KEY','Claude API Key'],
+    ['LM_STUDIO_BASE_URL','LM Studio URL'],['LM_STUDIO_MODEL','LM Studio Model'],
+    ['LM_STUDIO_API_KEY','LM Studio API Key'],
+  ]
+};
+
+async function loadSettings() {
+  const r = await fetch('/api/settings');
+  const s = await r.json();
+
+  Object.entries(settingsMap).forEach(([tab, fields]) => {
+    const table = document.getElementById(`settings-${tab}-table`);
+    table.innerHTML = fields.map(([key, label]) => `
+      <tr>
+        <td>${label}</td>
+        <td><input class="setting-input" data-key="${key}" value="${escHtml(s[key]||'')}" /></td>
+      </tr>`).join('');
+  });
+}
+
+async function saveAllSettings() {
+  const inputs = document.querySelectorAll('.setting-input');
+  for (const inp of inputs) {
+    if (inp.dataset.key && inp.value !== undefined) {
+      await saveSetting(inp.dataset.key, inp.value);
+    }
+  }
+  toast('All settings saved ✓', 'success');
+}
+
+document.querySelectorAll('.tab[data-stab]').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab[data-stab]').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.stab-content').forEach(c => c.style.display='none');
+    tab.classList.add('active');
+    document.getElementById(`stab-${tab.dataset.stab}`).style.display='block';
+  });
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+async function saveSetting(key, value) {
+  await fetch('/api/settings', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ key, value })
+  });
+}
+
+function classifyLog(line) {
+  if (/SUCCESS|PUBLISHED|✅/i.test(line)) return 'success';
+  if (/WARNING|WARN/i.test(line)) return 'warning';
+  if (/ERROR|Exception|Traceback|failed/i.test(line)) return 'error';
+  if (/youtube\.com|shorts\//i.test(line)) return 'url';
+  return 'info';
+}
+
+function appendLog(termId, text, cls) {
+  const term = document.getElementById(termId);
+  if (!term) return;
+  const line = document.createElement('div');
+  line.className = `log-${cls}`;
+  line.textContent = text;
+  if (cls === 'url') {
+    const url = text.match(/https?:\/\/[^\s]+/)?.[0];
+    if (url) { line.innerHTML = `<a class="log-url" href="${url}" target="_blank">${escHtml(text)}</a>`; }
+  }
+  term.appendChild(line);
+  term.scrollTop = term.scrollHeight;
+}
+
+function clearJobLog(ctx) {
+  const el = document.getElementById(ctx + '-log');
+  if (el) el.innerHTML = '';
+}
+
+function clearGlobalLog() {
+  document.getElementById('global-log').innerHTML = '';
+}
+
+function toast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+connectWS();
+pollStatus();
+setInterval(pollStatus, 8000);
+setInterval(renderRecentJobs, 2000);
+setInterval(renderJobs, 3000);
+</script>
+</body>
+</html>

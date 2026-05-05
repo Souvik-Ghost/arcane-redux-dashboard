@@ -1,0 +1,40 @@
+# ── Virtual environment ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ── Secrets — NEVER commit these ─────────────────────────────────────────────
+agent/.env
+.env
+*.json
+!package.json
+
+# ── Output / generated media ──────────────────────────────────────────────────
+agent/output/audio/
+agent/output/videos/
+agent/output/scripts/
+agent/output/thumbnails/
+agent/output/*.log
+agent/output/agent*.log
+
+# ── Temp job runner scripts ───────────────────────────────────────────────────
+agent/_run_*.py
+agent/_run_shorts_*.py
+agent/_short_*.txt
+agent/_bg_*.mp4
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
