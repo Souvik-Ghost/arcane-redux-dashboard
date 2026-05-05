@@ -35,7 +35,7 @@ def _run_ffmpeg(cmd: list[str], label: str = "") -> None:
             cmd,
             capture_output=True,
             text=True,
-            timeout=3600,          # 1hr hard ceiling per step
+            timeout=600,           # 10 min per FFmpeg step — fail fast if hung
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"FFmpeg [{label}] timed out after 3600s")
@@ -162,36 +162,56 @@ def _build_title_card(
 
 def _create_waveform_avatar(audio_path: Path, output_path: Path) -> Path:
     """
-    Generate a waveform visualizer avatar video from TTS audio.
+    Generate an avatar video from TTS audio using a looped gradient background.
 
-    Dark background + animated purple/violet waveform + channel name watermark.
-    Renders in ~90 seconds regardless of audio length (no per-frame math).
-    This is the permanent fallback when D-ID and HeyGen are unavailable.
+    Strategy: pre-render a 10s dark-purple animated tile (geq, ~30s), then loop
+    it over the full audio duration and add a channel name overlay + audio track.
+    Total render time: ~2 min regardless of audio length.
+
+    (Replaced showwaves approach which timed out after 1hr on long CPU-only audio.)
     """
-    logger.info("Step 2/5: Waveform avatar fallback (FFmpeg)...")
+    logger.info("Step 2/5: Avatar fallback — looped gradient + audio...")
     channel_label = _safe_text(config.AVATAR_NAME, max_len=40)
 
-    cmd = [
+    # Step A: Pre-render a 10s dark purple animated tile
+    bg_tile = output_path.with_name(output_path.stem + "_bg_tile.mp4")
+    _run_ffmpeg([
         "ffmpeg", "-y",
-        "-i", str(audio_path),
+        "-f", "lavfi",
+        "-i", "color=black:size=1920x1080:rate=24:duration=10",
         "-filter_complex",
         (
-            "[0:a]aformat=channel_layouts=mono,"
-            "showwaves=s=1920x400:mode=cline:colors=7c3aed|a855f7:scale=sqrt[wave];"
-            "color=c=0a0a1a:size=1920x1080[bg];"
-            "[bg][wave]overlay=x=0:y=340,"
-            f"drawtext=text='{channel_label}':fontsize=52"
-            f":fontcolor=white@0.5:x=(w-text_w)/2:y=h-90[v]"
+            "geq="
+            "r='20+15*sin(2*PI*t/3+X/400)':"
+            "g='5+5*sin(2*PI*t/4+Y/300)':"
+            "b='80+60*sin(2*PI*t/2+X/200+Y/400)'"
         ),
-        "-map", "[v]",
-        "-map", "0:a",
+        "-vcodec", "libx264", "-preset", "ultrafast", "-crf", "28",
+        str(bg_tile),
+    ], "avatar_bg_tile")
+
+    # Step B: Loop tile to audio length, add channel label, mux audio
+    _run_ffmpeg([
+        "ffmpeg", "-y",
+        "-stream_loop", "-1", "-i", str(bg_tile),
+        "-i", str(audio_path),
+        "-vf",
+        (
+            f"drawtext=text='{channel_label}'"
+            f":fontsize=72:fontcolor=white@0.85"
+            f":x=(w-text_w)/2:y=(h-text_h)/2"
+            f":box=1:boxcolor=black@0.35:boxborderw=24"
+        ),
+        "-map", "0:v",
+        "-map", "1:a",
         "-vcodec", "libx264", "-preset", "fast", "-crf", "22",
         "-acodec", "aac",
-        "-r", "24",
+        "-shortest",
         str(output_path),
-    ]
-    _run_ffmpeg(cmd, "waveform_avatar")
-    logger.success(f"Waveform avatar saved: {output_path.name}")
+    ], "avatar_composite")
+
+    bg_tile.unlink(missing_ok=True)
+    logger.success(f"Avatar saved: {output_path.name}")
     return output_path
 
 
